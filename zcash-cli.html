@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <link href="../base1/cockpit.css" type="text/css" rel="stylesheet">
     <link href="jquery.dataTables.min.css" type="text/css" rel="stylesheet">
-    <script src="../base1/jquery.js"></script>
+	<script src="jquery-3.3.1.min.js"></script>
     <script src="../base1/cockpit.js"></script>
     <script src="jquery.dataTables.min.js"></script>
 	<script src="date.format.js"></script>
@@ -90,10 +90,21 @@
             text-decoration: none;
             cursor: pointer;
         }
+        .zcash-wait-image {
+            margin: 18px;
+            width: 64px;
+            -webkit-animation:spin 4s linear infinite;
+            -moz-animation:spin 4s linear infinite;
+            animation:spin 4s linear infinite;
+        }
+        @-moz-keyframes spin { 100% { -moz-transform: rotate(360deg); } }
+        @-webkit-keyframes spin { 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spin { 100% { -webkit-transform: rotate(360deg); transform:rotate(360deg); } }
     </style>
 </head>
 
 <body class="page-ct">
+<script src="config.js"></script>
 <script src="utf8.js"></script>
 
 <div id="zcash-dialog-model" class="zcash-dialog-modal">
@@ -107,10 +118,9 @@
 
 <div class="container-fluid">
 
-    <img style="float: left; height: 42px; padding: 0px; margin: 0px; padding-right: 12px;" src="zcash-logo-black.png"
-         alt="zcash logo"/>
+    <img id="logo" style="float: left; height: 32px; padding: 0px; margin: 0px; padding-right: 12px;" src="logo-ZEC.png" alt="logo" />
     <div style="padding-top: 6px;">
-        <h2 style="margin-top: 0px; padding-top: 0px; float: left;">cockpit plugin</h2>
+        <h2 style="margin-top: 0px; padding-top: 0px; float: left;"><span class="csymbol">ZEC</span> cockpit plugin</h2>
         <button class="btn btn-default btn-primary" style="margin-left:6px;" id="zcash-refresh">Reload</button>
     </div>
     <div style="clear: both;"></div>
@@ -121,9 +131,9 @@
             <td style="min-width: 280px;">
 
                 <p style="float: left; padding-left: 6px; padding-right: 12px; padding-top: 4px;">
-                    Balance: <b><span id="zcash-balance">...</span></b> ZEC<br/> Shielded: <b><span
-                        id="zcash-pbalance">...</span></b> ZEC<br/> Unshielded: <b><span id="zcash-tbalance">...</span></b>
-                    ZEC<br/>
+                    Balance: <b><span id="zcash-balance">...</span></b> <span class="csymbol">ZCL</span><br/> Shielded: <b><span
+                        id="zcash-pbalance">...</span></b> <span class="csymbol">ZEC</span><br/> Unshielded: <b><span id="zcash-tbalance">...</span></b>
+                    <span class="csymbol">ZEC</span><br/>
                 </p>
                 <p style="float: left; padding-top: 4px; padding-right: 12px;">
                     Block Height: <b><span id="zcash-block">...</span></b><br/> Difficulty: <b><span
@@ -149,14 +159,15 @@
         <!-- <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabBlocks')">Blockchain</a></li> -->
         <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabTransactions')">Transactions</a></li>
         <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabShield')">Shield</a></li>
-        <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabSend')">Send</a></li>
+        <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabSend')">Send Many</a></li>
+		<li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabSendTo')">Send To</a></li>
         <li><a href="#tabs" class="tablinks" onclick="showTab(event, 'zcashTabConsole')">Console</a></li>
     </ul>
 
     <div id="zcashTabBalance" class="tabcontent">
         <p>
             <label>Shielded Coins</label> <!--<i>(Double Click on z-addr to view private transactions)</i> --> <br/>
-            <small>You may receive ZEC privately by giving out one of the addresses below.</small> <br />
+            <small>You may receive <span class="csymbol">ZEC</span> privately by giving out one of the addresses below.</small> <br />
             <span id="zcash-balance-zaddresses-info">...</span>
         </p>
         <p>
@@ -165,7 +176,7 @@
         </p>
         <p>
             <label>Public Transparent Addresses</label> <!--<i>(Double Click on z-addr to view private transactions)</i> --> <br />
-            <small>You may receive ZEC publicly by giving out one of the addresses below.</small> <br />
+            <small>You may receive <span class="csymbol">ZEC</span> publicly by giving out one of the addresses below.</small> <br />
             <span id="zcash-balance-taddresses-list">...</span>
         </p>
     </div>
@@ -188,26 +199,39 @@
             <tr>
                 <td valign="top">
                     <div class="roundedbox">
+						<label>Shield Transparent Funds</label><br/>
+						<label for="zcash-shield-zaddresses">To Address</label><br/>
+                        <select id="zcash-shield-zaddresses" style="margin-bottom: 6px;">
+                            <option value="tn1">zaddr</option>
+                        </select><br/>
+						<span align="center"><small><button class="btn btn-default btn-info" id="zcash-shield-all">Shield All Balances</button><br />						
+						- OR - <br />
                         <label for="zcash-shield-taddresses">From Address</label><br/>
                         <select id="zcash-shield-taddresses" style="margin-bottom: 6px;" onchange="if (this.selectedIndex >= 0) update_shield_amount();">
                             <option value="tn1">taddr</option>
                         </select>
                         <br/>
-
-                        <label for="zcash-shield-zaddresses">To Address</label><br/>
-                        <select id="zcash-shield-zaddresses" style="margin-bottom: 6px;">
-                            <option value="tn1">zaddr</option>
-                        </select><br/>
-                        <label for="zcash-shield-extrafee">Extra Fee</label><br/>
+                        <label for="zcash-shield-extrafee">Tx Fee</label><br/>
                         <input id="zcash-shield-extrafee" type="text" value="0.0001"/>
                         <br/>
                         <label for="zcash-shield-amount">Amount</label><br/>
                         <input id="zcash-shield-amount" type="text" value="0.0"/>
                         <br/>
                         <div style="margin-top: 8px; margin-bottom: 4px;">
-                            <button class="btn btn-default btn-primary" id="zcash-shield">Shield</button>
+                            <button class="btn btn-default btn-primary" id="zcash-shield">Shield Amount</button>
                         </div>
                     </div>
+
+					<div class="roundedbox" style="margin-top: 8px; margin-bottom: 4px;">
+					  <label>Shield Coinbase Funds</label><br/>
+						<label for="zcash-shield-coinbase-zaddresses">To Address</label><br/>
+                        <select id="zcash-shield-coinbase-zaddresses" style="margin-bottom: 6px;">
+                            <option value="tn1">zaddr</option>
+                        </select><br/>
+                      <div style="margin-top: 8px; margin-bottom: 4px;">
+					    <button class="btn btn-default btn-primary" id="zcash-shield-coinbase">Shield Coinbase</button>
+					  </div>
+					</div>
                 </td>
                 <td valign="top" style="padding-left: 8px;">
 
@@ -241,7 +265,7 @@
                         <select id="zcash-send-from">
                             <option value="tn1">addr</option>
                         </select><br/>
-                        <label>Extra Fee</label> <br/>
+                        <label>Tx Fee</label> <br/>
                         <input type="text" id="zcash-send-extrafee" value="0.0001"/>
                     </div>
 
@@ -276,6 +300,23 @@
 
         <p></p>
 
+    </div>
+	
+	<div id="zcashTabSendTo" class="tabcontent">
+	<table><tr><td>
+		<div id="zcash-send-to-wrapper" style="margin: 0px; padding: 0px;">
+			<div class="roundedbox" style="display: inline-block;">
+				<label>To Address</label> <br/>
+				<input type="text" name="zcash-sendto-to" class="zcash-sendto-to"/> <br/>
+				<label>Send Amount</label> <br/>
+				<input type="text" name="zcash-sendto-amount" class="zcash-sendto-amount" value="1.00"/> <br/> <br />
+				<label>Subtract Fee from Amount?</label> <br /> 
+				<input type="checkbox" name="zcash-sendto-includefee" class="zcash-sendto-includefee" /> <small>(Checked = Yes)</small> <br/>
+				<br/>				
+				<button class="btn btn-default btn-primary" id="zcash-sendto">Send</button>
+			</div>
+		</div>
+	</td></tr></table>
     </div>
 
     <div id="zcashTabConsole" class="tabcontent">
@@ -324,6 +365,10 @@
     <p></p>
 </div>
 <script src="zcash-cli.js"></script>
+<script>
+$("#logo").attr('src', 'logo-'+symbol+'.png');
+$(".csymbol").text(symbol);
+</script>
 </body>
 
 </html>

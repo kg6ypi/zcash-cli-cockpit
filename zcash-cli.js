@@ -11,17 +11,6 @@ Copyright (c) 2016 github.com/hellcatz
 */
 
 //
-// Config Variables
-//
-var zcashcli = "zcash-cli";
-var zcash_getinfo_rate = 60000;
-
-var explorer_transactions_url = "https://explorer.zcha.in/transactions/";
-
-
-
-
-//
 // Global Variables
 //
 var zcash_isrunning = false;
@@ -111,6 +100,7 @@ var zcash_wait_status = $("#zcash-wait-status");
 var zcash_shield_taddresses_info = $("#zcash-shield-taddresses-info")
 var zcash_shield_taddresses = $("#zcash-shield-taddresses")
 var zcash_shield_zaddresses = $("#zcash-shield-zaddresses");
+var zcash_shield_cb_zaddresses = $("#zcash-shield-coinbase-zaddresses");
 var zcash_shield_extra_fee = $("#zcash-shield-extrafee");
 var zcash_shield_amount = $("#zcash-shield-amount");
 
@@ -124,6 +114,11 @@ var zcash_send_extra_fee = $("#zcash-send-extrafee");
 var zcash_send_to = $(".zcash-send-to");
 var zcash_send_amount = $(".zcash-send-amount");
 var zcash_send_memo = $(".zcash-send-memo");
+
+// send to tab
+var zcash_sendto_to = $(".zcash-sendto-to");
+var zcash_sendto_amount = $(".zcash-sendto-amount");
+var zcash_sendto_includefee = $(".zcash-sendto-includefee");
 
 var zcash_sending_coins = false;
 var zcash_send_to_wrapper = $("#zcash-send-to-wrapper");
@@ -143,7 +138,10 @@ zcash_dialog_closebtn.onclick = function () {
 //
 $("#zcash-refresh").on("click", begin_application);
 $("#zcash-send").on("click", zcash_onClickSend);
+$("#zcash-sendto").on("click", zcash_onClickSendTo);
 $("#zcash-shield").on("click", zcash_onClickShield);
+$("#zcash-shield-coinbase").on("click", zcash_onClickShieldCoinbase);
+$("#zcash-shield-all").on("click", zcash_onClickShieldAll);
 $("#zcash-cli-input-run").on("click", zcash_cli_input_run);
 $("#zcash-send-add").on("click", zcash_send_add_more);
 
@@ -259,7 +257,7 @@ function begin_application() {
 
     // check if zcashd is running
     zcash_cli_op_running = true;
-    var cmd = ["pidof", "zcashd"];
+    var cmd = ["pidof", zcashd];
     var proc = cockpit.spawn(cmd, {
         err: 'out'
     });
@@ -371,8 +369,8 @@ function getblockrowindex(block) {
         return zcash_blocks_table.cell(rowIdx, 0).data() == block ? true : false;
     });
 
-    if ($(indexes).size() > 0)
-        return indexes[0];
+	if ($(indexes).length > 0)
+		return indexes[0];
 
     return null;
 }
@@ -382,7 +380,7 @@ function proc_zcash_cli_z_getblock(data) {
         var rowData = getblockrowindex(parseInt(jobj["height"]));
         if (rowData != null) {
             zcash_blocks_table.cell(rowData, 1).data(parseInt(jobj["time"]));
-            zcash_blocks_table.cell(rowData, 2).data($(jobj["tx"]).size());
+            zcash_blocks_table.cell(rowData, 2).data($(jobj["tx"]).length);
             zcash_blocks_table.cell(rowData, 3).data(parseInt(jobj["size"]));
         }
     }
@@ -405,7 +403,7 @@ function gettransactionrowindex(txid) {
         return zcash_transaction_table.cell(rowIdx, 0).data() == txid ? true : false;
     });
 
-    if ($(indexes).size() > 0)
+    if ($(indexes).length > 0)
         return indexes[0];
 
     return null;
@@ -650,8 +648,12 @@ function proc_zcash_cli_listunspent(data) {
             value: name,
             text: shortname
         }));
+        zcash_send_from.append($("<option/>", {
+            value: name,
+            text: shortname
+        }));
         // generate html for balances
-        var html = "<b>" + taddr_balances[name] + "</b> <small>ZEC</small> &rarr; <i><small>t-addr:</small> " + name + "</i><br />";
+        var html = "<b>" + taddr_balances[name] + "</b> <small>"+symbol+"</small> &rarr; <i><small>t-addr:</small> " + name + "</i><br />";
         zcash_shield_taddresses_info.append(html);
         zcash_balance_taddresses_info.append(html);
     }
@@ -661,6 +663,35 @@ function update_shield_amount() {
 	if (zcash_shield_taddresses.val() != null && taddr_balances[zcash_shield_taddresses.val()] != null) {
 		zcash_shield_amount.val(round(taddr_balances[zcash_shield_taddresses.val()] - zcash_shield_extra_fee.val()));
 	}
+}
+
+function do_shield_all(minBal, maxBal, extrafee)
+{
+	var count = 0;
+	var total_shielded = 0.0;
+    for (var name in taddr_balances)
+	{
+		var amount = round(taddr_balances[name] - extrafee);
+		if (amount >= minBal && amount <= maxBal) {
+		  zcash_cli_queued_shield(name.trim(), zcash_shield_zaddresses.val().trim(), amount.toFixed(8), extrafee);
+		  total_shielded += amount;
+		  count++;
+		}
+    }
+	
+	alert("Payment Operations Created: "+ count +"]\nTotal Shielded: "+round(total_shielded).toFixed(8));
+}
+
+function zcash_onClickShieldAll(e) {
+	do_shield_all(0.0002, 9999999.9, 0.0001);
+}
+
+function zcash_onClickShieldCoinbase(e) {
+    if (zcash_cli_op_running == true) {
+        alert("Operation already in progress...");
+        return;
+    }
+	zcash_cli_shield_coinbase(zcash_shield_cb_zaddresses.val().trim());
 }
 
 function zcash_onClickShield(e) {
@@ -675,7 +706,7 @@ function zcash_onClickShield(e) {
     }
     var extrafee = round(parseFloat(zcash_shield_extra_fee.val().trim()));
 	if (extrafee < 0.0001) {
-		alert("Minimum extra fee is 0.0001");
+		alert("Minimum tx fee is 0.0001");
         return;
 	}
     var maxamount = round(taddr_balances[zcash_shield_taddresses.val().trim()] - extrafee);
@@ -685,15 +716,34 @@ function zcash_onClickShield(e) {
         return;
     }
 	if (extrafee > amount) {
-        alert("Extra Fee can not be greater than amount!");
+        alert("Tx Fee can not be greater than amount!");
         return;
     }
     if (amount > maxamount) {
-        alert("Insufficient funds for transaction.\nAvailable amount is " + maxamount + " ZEC");
+        alert("Insufficient funds for transaction.\nAvailable amount is " + maxamount + " " + symbol);
         return;
     }
 	
     zcash_cli_shield(zcash_shield_taddresses.val().trim(), zcash_shield_zaddresses.val().trim(), amount.toFixed(8), extrafee);
+}
+
+
+function zcash_cli_queued_shield(taddr, zaddr, amount, fee) {
+	
+	var ztx = "[{\"amount\": " + amount.toString() + ", \"address\": \"" + zaddr.toString() + "\"}]";
+
+    //zcash_cli_op_running = true;
+    var cmd = [zcashcli, "z_sendmany", taddr, ztx];
+    if (fee > 0.0001) {
+		cmd = [zcashcli, "z_sendmany", taddr, ztx, "1", fee.toFixed(8)];
+	}
+	
+    zcash_output.empty();
+    zcash_output.append(cmd.join(" "));
+    var proc = cockpit.spawn(cmd, {
+        err: 'out'
+    });
+    proc.fail(proc_zcash_cli_fail);
 }
 
 function zcash_cli_shield(taddr, zaddr, amount, fee) {
@@ -714,6 +764,19 @@ function zcash_cli_shield(taddr, zaddr, amount, fee) {
         err: 'out'
     });
     proc.done(proc_zcash_cli_send_opid);
+    proc.fail(proc_zcash_cli_fail);
+}
+
+function zcash_cli_shield_coinbase(zaddr) {
+
+    zcash_cli_op_running = true;
+    var cmd = [zcashcli, "z_shieldcoinbase", "*", zaddr];
+    zcash_output.empty();
+    zcash_output.append(cmd.join(" "));
+    var proc = cockpit.spawn(cmd, {
+        err: 'out'
+    });
+    proc.done(proc_zcash_cli_output);
     proc.fail(proc_zcash_cli_fail);
 }
 
@@ -738,6 +801,7 @@ function proc_zcash_cli_zaddr(data) {
 
     zcash_send_from.empty();
     zcash_shield_zaddresses.empty();
+	zcash_shield_cb_zaddresses.empty();
 
     // zero private balances
     shielded_balance = 0.0;
@@ -765,13 +829,17 @@ function proc_zcash_cli_zaddr(data) {
             value: name,
             text: shortname
         }));
+		zcash_shield_cb_zaddresses.append($("<option/>", {
+            value: name,
+            text: shortname
+        }));
         // populate send tab select options
         zcash_send_from.append($("<option/>", {
             value: name,
             text: shortname
         }));
         // generate html for balances
-        var html = " <b><span id=\"" + name + "\">...</span></b> <small>ZEC</small> &rarr; <i><small>z-addr:</small> <span id=\"view" + name + "\" ondblclick=\"show_z_listreceivedbyaddress('" + name + "');\">" + name + "</span></i><br />";
+        var html = " <b><span id=\"" + name + "\">...</span></b> <small>"+symbol+"</small> &rarr; <i><small>z-addr:</small> <span id=\"view" + name + "\" ondblclick=\"show_z_listreceivedbyaddress('" + name + "');\">" + name + "</span></i><br />";
         zcash_send_zaddresses_info.append(html);
         // lookup balance for zaddr
         zcash_cli_getbalance_for_zaddr(name);
@@ -827,6 +895,38 @@ function zcash_send_add_more(e) {
     zcash_send_to_wrapper.append(html);
 }
 
+function zcash_onClickSendTo(e) {
+    if (zcash_cli_op_running == true) {
+        alert("Operation already in progress...");
+        return;
+    }
+	
+    zcash_sendto_to = $(".zcash-sendto-to");
+    zcash_sendto_amount = $(".zcash-sendto-amount");
+    zcash_sendto_includefee = $(".zcash-sendto-includefee");
+	
+	if (isEmpty(zcash_sendto_to.val())) {
+		alert("Invalid Send To Address");
+        return;
+	}
+	if (isEmpty(zcash_sendto_amount.val())) {
+		alert("Invalid Amount");
+        return;
+	}
+		
+	
+	var cmd = [zcashcli, "sendtoaddress", zcash_sendto_to.val(), zcash_sendto_amount.val(), "", "", true];
+
+    zcash_output.empty();
+    zcash_output.append(cmd.join(" "));
+
+    var proc = cockpit.spawn(cmd, {
+        err: 'out'
+    });
+    proc.done(proc_zcash_cli_output);
+    proc.fail(proc_zcash_cli_fail);
+}
+
 function zcash_onClickSend(e) {
 
     if (zcash_cli_op_running == true) {
@@ -834,7 +934,7 @@ function zcash_onClickSend(e) {
         return;
     }
 
-    var isZADDR = (zcash_send_from.val().toString().match("^z") != null);
+    var isZADDR = (zcash_send_from.val().toString().match("^zc") != null || zcash_send_from.val().toString().match("^zs") != null);
     var balances = isZADDR ? shielded_balances : taddr_balances;
     if (balances[zcash_send_from.val()] == null) {
         alert("Invalid from address.");
@@ -847,7 +947,7 @@ function zcash_onClickSend(e) {
 
     var extrafee = round(parseFloat(zcash_send_extra_fee.val()));
 	if (extrafee < 0.0001) {
-		alert("Minimum extra fee is 0.0001");
+		alert("Minimum tx fee is 0.0001");
         return;
 	}
     var maxamount = round(balances[zcash_send_from.val()] - extrafee);
@@ -872,7 +972,7 @@ function zcash_onClickSend(e) {
 
     var confirmHtml = "Are you sure you want to send?\n\n";
     var total_amount = 0.0;
-    var count = $(to_addrs).size();
+    var count = $(to_addrs).length;
     var addrAvailable = false;
     for (i = 0; i < count; i++) {
         // ignore empty to_addrs
@@ -903,7 +1003,7 @@ function zcash_onClickSend(e) {
         }
 
         var shortname = to_addrs[i].substring(0, 7) + "..." + to_addrs[i].substring((to_addrs[i].toString().length - 7));
-        confirmHtml += "Amount: " + amounts[i].toString() + " ZEC\n";
+        confirmHtml += "Amount: " + amounts[i].toString() + " "+symbol+"\n";
         confirmHtml += "To: " + shortname + "\n\n";
 
         var amount = parseFloat(amounts[i].toString());
@@ -920,22 +1020,22 @@ function zcash_onClickSend(e) {
     }
 
     if (total_amount > maxamount) {
-        alert("Insufficient funds for transaction.\nAvailable amount is " + maxamount + " ZEC");
+        alert("Insufficient funds for transaction.\nAvailable amount is " + maxamount + " "+symbol);
         return;
     }
 	
     if (extrafee > total_amount) {
-        alert("Extra Fee can not be greater than amount!");
+        alert("Tx Fee can not be greater than amount!");
         return;
     }
 	
-    confirmHtml += "Extra Fee: " + extrafee.toString() + " ZEC\n";
-    confirmHtml += "Total Cost: " + round(total_amount + extrafee).toString() + " ZEC\n\n";
+    confirmHtml += "Tx Fee: " + extrafee.toString() + " "+symbol+"\n";
+    confirmHtml += "Total Cost: " + round(total_amount + extrafee).toString() + " "+symbol+"\n\n";
 
     shortname = zcash_send_from.val().trim().substring(0, 7) + "..." + zcash_send_from.val().trim().substring((zcash_send_from.val().trim().toString().length - 7));
     confirmHtml += "From: " + shortname + "\n";
-    confirmHtml += "Begin Balance: " + round(maxamount + extrafee).toString() + " ZEC\n";
-    confirmHtml += "Ending Balance: " + round(maxamount - total_amount).toString() + " ZEC\n\n";
+    confirmHtml += "Begin Balance: " + round(maxamount + extrafee).toString() + " "+symbol+"\n";
+    confirmHtml += "Ending Balance: " + round(maxamount - total_amount).toString() + " "+symbol+"\n\n";
 
     var doTrx = confirm(confirmHtml);
     if (doTrx == true) {
@@ -948,7 +1048,7 @@ function zcash_wait_operation_start(title) {
     zcash_wait.empty();
     zcash_wait_status.empty();
     zcash_wait.css("color", "");
-    zcash_wait.append("<img id=\"zcash-wait-image\" src=\"zcash-logo-spin.gif\" alt=\"please wait\" align=\"left\" style=\"padding-right: 12px;\" /> <label>" + title.toString() + "</label> <br />");
+    zcash_wait.append("<img class=\"zcash-wait-image\" id=\"zcash-wait-image\" src=\"logo-"+symbol+".jpg\" alt=\"please wait\" align=\"left\" style=\"padding-right: 12px; animation:spin 4s linear infinite;\" /> <label>" + title.toString() + "</label> <br />");
     showTab(null, "zcashTabWait");
 }
 function zcash_wait_operation_progress(msg) {
@@ -983,17 +1083,16 @@ function zcash_cli_sendmany(from_addr, to_addrs, amounts, memos, fee) {
     }
 
     var ztx = "[";
-    var count = $(to_addrs).size();
+    var count = $(to_addrs).length;
     for (i = 0; i < count; i++) {
 
         if (isEmpty(to_addrs[i])) {
             continue;
         }
         // make sure the addr string starts with z or t
-        if ((to_addrs[i].toString().match("^z") == null && to_addrs[i].toString().match("^t")) == null) {
-            continue;
-        }
-
+        //if ((to_addrs[i].toString().match("^z") == null && to_addrs[i].toString().match("^t")) == null) {
+            //continue;
+        //}
         var tx = "{\"amount\": " + parseFloat(amounts[i].toString()).toFixed(8) + ", \"address\": \"" + to_addrs[i].toString() + "\"}, ";
         // memos only work for z-addr
         if (memos[i].length > 0 && to_addrs[i].toString().match("^z") != null)
@@ -1151,7 +1250,7 @@ function proc_zcash_cli_listtransactions(data) {
         // TODO, style the row color
 
         /*
-         var html = " <p><span id=\"" + jobj[i]["txid"] + "\">" + date + " - confirmations: " + jobj[i]["confirmations"] + "<br /><i><small>txid:</small> " + jobj[i]["txid"] + "</i><br /> " + jobj[i]["category"] + " <b>" + jobj[i]["amount"] + "</b> <small>ZEC</small> <small>for t-addr: <b>" + jobj[i]["address"] + "</b></small> </span></p>";
+         var html = " <p><span id=\"" + jobj[i]["txid"] + "\">" + date + " - confirmations: " + jobj[i]["confirmations"] + "<br /><i><small>txid:</small> " + jobj[i]["txid"] + "</i><br /> " + jobj[i]["category"] + " <b>" + jobj[i]["amount"] + "</b> <small>"+symbol+"</small> <small>for t-addr: <b>" + jobj[i]["address"] + "</b></small> </span></p>";
          zcash_transaction_info.append(html);
          if (jobj[i]["category"] == "generate") {
          // this coin was mined and verified
@@ -1230,7 +1329,7 @@ function proc_zcash_cli_z_listreceivedbyaddress(data) {
     $.each(jobj.reverse(), function (i) {
         var html = "<p>";
         html += "<small>txid: " + jobj[i]["txid"] + "</small><br />";
-        html += "<small>receive</small> <b>" + jobj[i]["amount"] + "</b> <small>ZEC</small> ";
+        html += "<small>receive</small> <b>" + jobj[i]["amount"] + "</b> <small>"+symbol+"</small> ";
         if (!isEmpty(jobj[i]["memo"])) {
             html += " Memo: <i>" + jobj[i]["memo"].hexDecode() + "</i>";
         }
